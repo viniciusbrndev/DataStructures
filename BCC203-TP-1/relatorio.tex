@@ -1,0 +1,715 @@
+\documentclass[12pt,a4paper]{article}
+
+% ==============================================================================
+% Pacotes Fundamentais e Tipografia
+% ==============================================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[brazilian]{babel}
+\usepackage[top=3cm,bottom=2cm,left=3cm,right=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{microtype}
+\usepackage{hyperref}
+
+% ==============================================================================
+% Configurações de Hiperlinks
+% ==============================================================================
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black,
+    pdfauthor={Luiz Henrique Silva Sampaio, Kaio Alves Simões, Victor Kangussu, Vinícius Brandão},
+    pdftitle={Relatório Prático: Análise Comparativa de Métodos de Pesquisa em Memória Secundária - BCC203},
+    pdfsubject={Estrutura de Dados II - UFOP},
+    pdfkeywords={Pesquisa Externa, Acesso Sequencial Indexado, Árvore Binária, Árvore B, Árvore B*, Benchmark, BCC203, UFOP}
+}
+
+% ==============================================================================
+% Configurações de Cabeçalho e Rodapé
+% ==============================================================================
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\footnotesize \nouppercase{\leftmark}}
+\rfoot{\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% ==============================================================================
+% Configurações de Listagens de Código
+% ==============================================================================
+\lstset{
+    language=C++,
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{blue!80!black}\bfseries,
+    commentstyle=\color{green!50!black}\itshape,
+    stringstyle=\color{red!70!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=8pt,
+    backgroundcolor=\color{gray!5},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    frame=single,
+    rulecolor=\color{gray!40},
+    tabsize=4,
+    captionpos=b,
+    breaklines=true,
+    breakatwhitespace=false
+}
+
+\begin{document}
+
+% ==============================================================================
+% CAPA (Capa Acadêmica ABNT / DECOM - UFOP)
+% ==============================================================================
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+    \centering
+    {\large \textbf{UNIVERSIDADE FEDERAL DE OURO PRETO -- UFOP}}\\[0.2cm]
+    {\large \textbf{INSTITUTO DE CIÊNCIAS EXATAS E BIOLÓGICAS -- ICEB}}\\[0.2cm]
+    {\large \textbf{DEPARTAMENTO DE COMPUTAÇÃO -- DECOM}}\\[0.2cm]
+
+    \vfill
+
+    {\large \textbf{BCC203 -- ESTRUTURA DE DADOS II}}\\[0.6cm]
+
+    {\LARGE \textbf{RELATÓRIO PRÁTICO I:}}\\[0.3cm]
+    {\Large \textbf{ANÁLISE COMPARATIVA DE ALGORITMOS DE PESQUISA EM MEMÓRIA SECUNDÁRIA}}\\[0.4cm]
+    {\large Acesso Sequencial Indexado, Árvore Binária de Pesquisa Externa, Árvore B e Árvore B*}
+
+    \vfill
+
+    {\large \textbf{Autores:}}\\[0.25cm]
+    Kaio Alves Simões\\[0.15cm]
+    Luiz Henrique Silva Sampaio\\[0.15cm]
+    Victor Kangussu\\[0.15cm]
+    Vinícius Brandão\\[0.8cm]
+
+    {\large \textbf{Professor:}}\\[0.25cm]
+    Prof. Guilherme Tavares de Assis
+
+    \vfill
+
+    {\large \textbf{Ouro Preto -- MG}}\\[0.2cm]
+    {\large \textbf{2026}}
+\end{titlepage}
+
+% ==============================================================================
+% SUMÁRIO
+% ==============================================================================
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}
+\thispagestyle{empty}
+\tableofcontents
+\newpage
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% ==============================================================================
+% 1. INTRODUÇÃO
+% ==============================================================================
+\section{Introdução}
+\label{sec:introducao}
+
+O processamento e a recuperação de grandes volumes de informações constituem um dos pilares centrais da Ciência da Computação contemporânea. Em cenários reais, bancos de dados corporativos e sistemas de arquivos frequentemente manipulam volumes de registros que excedem substancialmente a capacidade da memória principal (RAM) disponível, ou demandam estruturas de indexação persistentes entre execuções. Nesses contextos, as estruturas de dados clássicas em memória volátil tornam-se inadequadas devido ao custo de acesso à memória secundária (discos magnéticos ou unidades de estado sólido -- SSDs), cuja latência é ordens de magnitude superior à da memória primária.
+
+Na disciplina de \textbf{Estrutura de Dados II (BCC203)}, o estudo de métodos de pesquisa externa visa projetar e avaliar algoritmos capazes de minimizar a quantidade de transferências de blocos (páginas) entre o disco e a RAM, otimizando o tempo de resposta e o consumo de I/O (\textit{Input/Output}).
+
+O presente trabalho prático analisa, implementa e compara experimentalmente quatro estruturas de dados e algoritmos de pesquisa externa, contemplando diferentes modelos de residência de memória para seus índices:
+\begin{enumerate}
+    \item \textbf{Acesso Sequencial Indexado (ISA -- \textit{Indexed Sequential Access}):} implementado com tabela de índices em memória secundária (arquivo de cache);
+    \item \textbf{Árvore Binária de Pesquisa Externa:} implementada integralmente em memória secundária, com nós persistidos em arquivo binário;
+    \item \textbf{Árvore B (Ordem $M$):} implementada em \textbf{memória secundária}, serializando seus nós multi-vias diretamente em arquivo binário persistente (\texttt{.btree}), de modo que a navegação entre níveis da árvore demanda transferências de blocos do disco para a RAM;
+    \item \textbf{Árvore B* (com separação entre nós de índice e folhas de dados):} implementada em \textbf{memória principal}, mantendo sua hierarquia de nós dinamicamente em memória RAM e acessando a memória secundária estritamente para carregar a página do registro final resgatado.
+\end{enumerate}
+
+\paragraph{Modelo de Registros e Paginação:}
+Os experimentos manipulam registros representados pela estrutura \texttt{Item}, onde cada elemento é constituído por:
+\begin{itemize}
+    \item Uma chave primária inteira de 32 bits (\texttt{int key});
+    \item Um valor numérico de 64 bits (\texttt{long int value});
+    \item Um arranjo fixo de caracteres com 5.000 bytes (\texttt{std::array<char, 5000> text}).
+\end{itemize}
+Dada a dimensão volumétrica de cada item (aproximadamente 5.012 bytes), a transferência entre memória secundária e primária ocorre em blocos fixos denominados \textit{páginas}, onde cada página encapsula exatamente $\text{PAGE\_SIZE} = 100$ registros.
+
+\paragraph{Delimitação de Escopo:}
+Ressalta-se expressamente que os utilitários de geração sintética de arquivos binários (\textit{gerador de arquivos}) foram concebidos com a finalidade exclusiva de prover massas de dados de teste padronizadas para a bancada experimental. Conforme as especificações deste relatório, o gerador de arquivos é completamente omitido do escopo analítico, concentrando-se todo o estudo nas fases de pré-processamento/construção dos índices, nos algoritmos de pesquisa e nas métricas empíricas de desempenho.
+
+% ==============================================================================
+% 2. FERRAMENTAS UTILIZADAS E AMBIENTE EXPERIMENTAL
+% ==============================================================================
+\section{Ferramentas Utilizadas e Ambiente Experimental}
+\label{sec:ferramentas}
+
+Para assegurar reprodutibilidade científica, robustez de engenharia de software e precisão nas coletas cronométricas, todo o ecossistema experimental foi cuidadosamente padronizado.
+
+\subsection{Linguagem, Compilador e Ferramentas de Construção}
+O projeto foi integralmente desenvolvido na linguagem \textbf{C++23}, tirando proveito de construções semânticas modernas da biblioteca padrão, como abstrações de sistemas de arquivos (\texttt{std::filesystem}), semântica de valores opcionais (\texttt{std::optional}), medição de alta precisão temporal (\texttt{std::chrono}) e encapsulamento modular:
+\begin{itemize}
+    \item \textbf{Compilador:} GNU GCC 13.3.0 (\texttt{g++-13}) / Clang 18.0, operando sob o padrão ISO C++23 (\texttt{-std=c++23});
+    \item \textbf{Sinalizadores de Compilação:} Verificação estrita de conformidade (\texttt{-Wall}, \texttt{-Wextra}, \texttt{-Wpedantic}) e compilação em perfil Release com otimização ativada (\texttt{-O3});
+    \item \textbf{Automação de Build:} CMake (versão 3.28+) gerenciando alvos de compilação, dependências e geração dos binários de pesquisa e gerador sintético de dados;
+    \item \textbf{Automação de CI/CD e Execução dos Benchmarks:} Pipeline de integração contínua via GitHub Actions (definido em \texttt{.github/}\allowbreak\texttt{workflows/}\allowbreak\texttt{benchmark.yml}), orquestrando a compilação, geração parametrizada de massas de dados sintéticos e execução automatizada dos experimentos sob ambiente virtualizado isolado;
+    \item \textbf{Qualidade de Código:} \texttt{clang-format} (padronização de estilo) e \texttt{clang-tidy} (linter e análise estática).
+\end{itemize}
+
+\subsection{Especificações do Ambiente de Execução (Hardware e Software)}
+Para assegurar determinismo, reprodutibilidade e neutralidade de aferição, todos os testes de desempenho e medições cronométricas foram conduzidos em ambiente de nuvem dedicado através de um \textit{runner} hospedado pelo GitHub Actions (\texttt{runs-on: ubuntu-latest}), executando a ação automatizada descrita no arquivo \texttt{.github/}\allowbreak\texttt{workflows/}\allowbreak\texttt{benchmark.yml}. Esse arranjo elimina interferências de processos de usuário concorrentes, mitigando variações térmicas de frequência (\textit{thermal throttling}) e assegurando condições idênticas de sistema operacional e I/O entre os ensaios.
+
+As especificações técnicas do ambiente de execução (hardware virtualizado e software de suporte) estão consolidadas na Tabela~\ref{tab:hardware}.
+
+\begin{table}[H]
+\centering
+\caption{Especificação técnica do ambiente de testes (GitHub Actions Runner).}
+\label{tab:hardware}
+\begin{tabular}{p{0.34\textwidth} p{0.60\textwidth}}
+\toprule
+\textbf{Componente} & \textbf{Especificação Técnica} \\
+\midrule
+Plataforma de Execução & GitHub Actions Runner (Host: Microsoft Azure, Região \texttt{centralus}) \\
+Processador (CPU) & 4 vCPUs (Intel Xeon Platinum / AMD EPYC de classe datacenter) \\
+Arquitetura & x86\_64 (64-bit) \\
+Memória RAM & 16 GB DDR4/DDR5 \\
+Armazenamento Secundário & Disco de Estado Sólido (SSD) virtualizado padrão Azure ($\approx 145$ GB no volume raiz \texttt{/dev/root}, com $\approx 108$ GB livres após higienização de ferramentas) \\
+Sistema Operacional & Linux Ubuntu 24.04.5 LTS (Noble Numbat), Imagem \texttt{ubuntu-24.04} (v20261004.327.1) \\
+Versão do Kernel & Linux Kernel 6.17.0-1022-azure \\
+Sistema de Arquivos & \texttt{ext4} (ponto de montagem \texttt{/}) \\
+Compilador C++ & GNU GCC 13.3.0 (\texttt{g++-13}, perfil \texttt{-O3 -std=c++23}) \\
+Ferramentas Auxiliares & CMake 3.28.3, Python 3.12.15, TeX Live 2023 (pdflatex) \\
+Workflow de Execução & GitHub Actions (\texttt{.github/}\allowbreak\texttt{workflows/}\allowbreak\texttt{benchmark.yml}, timeout 180 min) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Metodologia Experimental e Métricas Coletadas}
+A avaliação de cada algoritmo é realizada em duas fases distintas, conforme implementado no módulo central de instrumentação:
+\begin{enumerate}
+    \item \textbf{Fase de Pré-processamento:} Compreende a varredura inicial do arquivo de dados e a geração ou carga da estrutura de índice correspondente (construção da tabela de índice ou árvore em memória secundária/primária);
+    \item \textbf{Fase de Pesquisa:} Compreende a localização da chave desejada na estrutura indexada, o mapeamento do número da página no arquivo de dados, a transferência da página de 100 itens para a RAM e a recuperação do registro completo.
+\end{enumerate}
+
+Para cada fase, as seguintes grandezas são registradas através do coletor estático \texttt{Metrics}:
+\begin{itemize}
+    \item \textbf{Tempo de Execução ($T$, em milissegundos):} Mensurado em alta resolução via \texttt{std::chrono::}\allowbreak\texttt{high\_resolution\_clock};
+    \item \textbf{Transferências de Disco para RAM ($R$):} Contagem exata de requisições de blocos/páginas transferidos da memória secundária para a memória principal;
+    \item \textbf{Comparações de Chaves ($C$):} Contagem estrita de avaliações relacionais efetuadas entre a chave buscada e as chaves dos registros indexados.
+\end{itemize}
+
+\paragraph{Regimes de Execução -- Cold vs. Warm e Modelos de Memória:}
+O comportamento dos métodos de pesquisa externa é analisado sob dois regimes operacionais distintos em relação ao estado de persistência da estrutura de índice:
+\begin{itemize}
+    \item \textbf{Cold (Execução a Frio / Cold Start):} Para as estruturas baseadas em memória secundária (ISA, Árvore Binária e Árvore B), ocorre quando \textbf{é preciso criar o arquivo de cache/índice em disco} correspondente. Nesse cenário, o arquivo de índice não existe previamente em disco, exigindo que a fase de pré-processamento realize a varredura completa do arquivo de dados e construa/persista a estrutura de índice do zero. Para a Árvore B* em memória principal, corresponde à carga e montagem completa da árvore na memória RAM a partir da leitura sequencial do arquivo de dados;
+    \item \textbf{Warm (Execução a Quente / Warm Start):} Para as estruturas baseadas em memória secundária, ocorre quando \textbf{o arquivo de cache/índice já existe} no disco previamente e está válido. O algoritmo detecta o arquivo persistente pré-existente e o reaproveita/carrega diretamente, eliminando a sobrecarga de reconstrução do índice a partir do arquivo de dados. Para a Árvore B*, corresponde à reutilização da estrutura de dados já instanciada em memória principal.
+\end{itemize}
+
+\paragraph{Metodologia de Coleta de Dados e Formação das Tabelas:}
+Para garantir rigor científico, reprodutibilidade e mitigar ruídos estocásticos decorrentes de interrupções de hardware, paginação do sistema operacional ou flutuações de I/O em disco, cada cenário de teste experimental deve ser executado \textbf{100 vezes sob as mesmas condições}. Todos os dados mensurados nessas execuções são considerados \textbf{diretamente para o benchmark}, eliminando-se qualquer agregação ou cálculo de mediana intermediária, e reportando-se as métricas sob a ótica dos percentis \textbf{p50 (mediana)}, \textbf{p75} e \textbf{p99}.
+
+Para cada configuração avaliada (combinação de algoritmo, volume de dados $N$, estado de ordenação e regime operacional), adota-se estritamente o seguinte procedimento metodológico:
+\begin{enumerate}
+    \item \textbf{Execuções Sob as Mesmas Condições (100 Repetições):} Cada teste é executado exatamente \textbf{100 vezes sob idênticas condições operacionais e estruturais}, coletando-se diretamente as métricas de tempo de execução, transferências de disco e comparações de chaves para compor o conjunto amostral do benchmark sem agregações prévias;
+    \item \textbf{Checagem de Presença da Chave e Regeneração de Entrada:} Mantém-se a verificação mandatória de que a chave pesquisada deve estar \textbf{estritamente contida no arquivo de entrada}, considerando-se válidos exclusivamente os testes realizados com chaves presentes nos dados. Caso o teste falhe por falta da chave na entrada gerada, a execução é sumariamente desconsiderada e o teste \textbf{deve ser refeito com uma nova entrada}, reiterando-se o ciclo até totalizar as 100 execuções válidas com a chave presente;
+    \item \textbf{Controle de Regime (Cold Start vs. Warm Start):}
+    \begin{itemize}
+        \item No regime \textbf{Cold Start}, assegura-se expressamente que o arquivo de índice/cache das estruturas em memória secundária \textbf{não exista no disco} antes do início da execução (removendo qualquer arquivo persistente prévio correspondente), forçando o algoritmo a processar o arquivo de entrada do zero e persistir a estrutura de índice em disco (ou instanciá-la em RAM no caso da Árvore B*);
+        \item No regime \textbf{Warm Start}, a execução é realizada preservando-se a estrutura previamente construída e validada (reaproveitando o arquivo persistido em disco para ISA, Árvore Binária e Árvore B, ou a árvore já montada em memória principal para a Árvore B*), avaliando o custo de busca com o índice pré-existente sob as mesmas condições.
+    \end{itemize}
+    \item \textbf{Consolidação Direta no Benchmark (p50, p75 e p99):} Os dados das 100 execuções válidas são computados diretamente para a formação das estatísticas de benchmark:
+    \begin{itemize}
+        \item \textbf{Tempos de Execução:} Apuram-se os percentis da distribuição direta de tempos das 100 amostras: o \textbf{p50 (Mediana)} expressa a tendência central e o comportamento típico do sistema; o \textbf{p75 (75º Percentil)} reflete o patamar superior de tempo na maior parte dos ensaios; e o \textbf{p99 (99º Percentil)} captura a latência de cauda (\textit{tail latency}) e eventuais gargalos transitórios de I/O em disco;
+        \item \textbf{Transferências e Comparações:} Dada a natureza algorítmica uniforme dessas grandezas para uma mesma topologia de busca, reporta-se o valor mediano central (\textbf{p50}) obtido diretamente das 100 execuções.
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Cenários de Entrada (Situações):}
+Os ensaios foram conduzidos considerando três estados estruturais dos dados originais:
+\begin{itemize}
+    \item \textbf{Situação 1 -- Arquivo Ordenado Ascendentemente;}
+    \item \textbf{Situação 2 -- Arquivo Ordenado Descendentemente;}
+    \item \textbf{Situação 3 -- Arquivo Desordenado (Aleatório/Embaralhado).}
+\end{itemize}
+Para cada cenário, foram submetidos volumes variados de registros, tipicamente parametrizados em ordens de grandeza incrementais: $N \in \{20, \, 2.000, \, 20.000, \, 200.000, \, 2.000.000\}$.
+
+% ==============================================================================
+% 3. ALGORITMOS DE PESQUISA
+% ==============================================================================
+\section{Algoritmos de Pesquisa}
+\label{sec:algoritmos}
+
+Nesta seção, cada um dos quatro métodos de pesquisa externa implementados é descrito detalhadamente em termos de seu modelo teórico, arquitetura de implementação em C++, funcionamento das fases de pré-processamento e busca, acompanhado de sua respectiva tabela comparativa de benchmarks e análise de comportamento.
+
+% ------------------------------------------------------------------------------
+% 3.1 Acesso Sequencial Indexado (ISA)
+% ------------------------------------------------------------------------------
+\subsection{Acesso Sequencial Indexado (Indexed Sequential Access -- ISA)}
+\label{subsec:isa}
+
+\subsubsection{Princípio de Funcionamento e Implementação}
+O método de \textbf{Acesso Sequencial Indexado} é uma das abordagens pioneiras para redução de acessos em arquivos externos ordenados. A técnica baseia-se na criação de uma tabela de índices esparsa, na qual cada entrada mapeia a menor chave contida em uma página de dados ao respectivo índice da página no arquivo binário.
+
+\paragraph{Arquitetura e Classes:}
+A implementação foi modularizada no \textit{namespace} \texttt{Algorithm::}\allowbreak\texttt{IndexedSequentialAccess}:
+\begin{itemize}
+    \item \texttt{Cache}: Classe responsável pela criação, validação temporal e manipulação do arquivo de índice (\texttt{.cache}). Cada entrada (\texttt{Cache::Entry}) armazena um par \texttt{(key, pageIndex)}. A estrutura conta ainda com metadados (\texttt{lastModification} e \texttt{size}) para garantir que o cache em disco seja invalidado caso o arquivo de dados sofra alterações;
+    \item \texttt{ISA}: Classe de alto nível que orquestra a consulta. Recebe a instância compartilhada de \texttt{File} e coordena a consulta ao índice e a posterior recuperação da página de dados.
+\end{itemize}
+
+\paragraph{Fase de Pré-processamento:}
+Durante a construção do índice (\texttt{Cache::BuildCache}), o arquivo de dados original é percorrido sequencialmente de página em página. Para cada página, a menor chave (o primeiro item da página) é extraída juntamente com seu número de página e gravada no arquivo de índice. Como o índice armazena apenas uma entrada por página, o tamanho do arquivo de índice é $\approx \frac{1}{\text{PAGE\_SIZE}}$ do tamanho do arquivo de dados original, permitindo carregamento rápido ou busca direta.
+
+\paragraph{Fase de Pesquisa:}
+Ao consultar uma chave $K$:
+\begin{enumerate}
+    \item Uma busca binária é executada diretamente nas entradas do arquivo de índice (\texttt{Cache::Search(key)}), localizando a página candidata onde $K$ pode residir (isto é, a página cujo menor item satisfaz $\text{chave\_pagina} \le K < \text{chave\_proxima\_pagina}$);
+    \item Se nenhuma página compatível for encontrada, a busca é finalizada com ausência;
+    \item Caso contrário, apenas a página indicada é carregada do disco para a memória principal via \texttt{File::GetPageAt(pageIndex)};
+    \item Realiza-se uma busca sequencial linear sobre os itens válidos da página em RAM, comparando a chave procurada até localizá-la ou esgotar a página.
+\end{enumerate}
+
+\paragraph{Restrições Estruturais:}
+Por depender da pressuposição de monotonicidade entre as páginas e dentro de cada página para delimitar os intervalos de busca, o método exige obrigatoriamente que o arquivo esteja \textbf{ordenado ascendentemente} (Situação 1). A tentativa de execução sobre arquivos descendentemente ordenados (Situação 2) ou desordenados (Situação 3) é rejeitada pelo sistema por inconsistência teórica do índice esparso simples.
+
+\subsubsection{Resultados Experimentais e Tabela de Benchmark}
+A Tabela~\ref{tab:bench_isa} consolida as medições obtidas pelo método ISA em diferentes escalas volumétricas, contrastando execuções \textit{Cold} (criação mandatória do arquivo de cache) e \textit{Warm} (reaproveitamento do arquivo de cache existente). Conforme detalhado na metodologia, os tempos de execução reportam os percentis p50, p75 e p99 obtidos diretamente a partir das 100 execuções sob as mesmas condições (com a chave garantidamente presente na entrada), enquanto transferências de disco e comparações de chaves expressam a mediana central apurada (p50).
+
+\begin{table}[H]
+\centering
+\caption{Benchmark experimental -- Acesso Sequencial Indexado (ISA).}
+\label{tab:bench_isa}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llr rrr rr rrr rr}
+\toprule
+& & & \multicolumn{5}{c}{\textbf{Pré-processamento}} & \multicolumn{5}{c}{\textbf{Pesquisa}} \\
+\cmidrule(lr){4-8} \cmidrule(lr){9-13}
+& & & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} \\
+\cmidrule(lr){4-6} \cmidrule(lr){9-11}
+\textbf{Situação} & \textbf{Regime} & \textbf{Qtd ($N$)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} \\
+\midrule
+Ascendente & Cold & 20                                         &    0.35 &    0.37 &    0.46 &     1 &     0 &    0.04 &    0.04 &    0.09 &     2 &    10 \\
+Ascendente & Cold & 2.000                          &    1.18 &    1.24 &    1.50 &    20 &     0 &    0.06 &    0.07 &    0.09 &     6 &    48 \\
+Ascendente & Cold & 20.000                     &    8.63 &    9.02 &   10.56 &   200 &     0 &    0.07 &    0.08 &    0.10 &     9 &    58 \\
+Ascendente & Cold & 200.000                &   84.19 &   87.05 &  110.95 & 2.000 &     0 &    0.08 &    0.09 &    0.10 &    12 &    57 \\
+Ascendente & Cold & 2.000.000      & 17936.20 & 17951.80 & 18003.01 & 20.000 &     0 &    0.09 &    0.32 &    1.30 &    15 &    72 \\
+\midrule
+Ascendente & Warm & 20                                         &    0.02 &    0.02 &    0.04 &     1 &     0 &    0.28 &    0.30 &    0.42 &     2 &    12 \\
+Ascendente & Warm & 2.000                          &    0.02 &    0.02 &    0.05 &     1 &     0 &    0.32 &    0.34 &    0.38 &     5 &    54 \\
+Ascendente & Warm & 20.000                     &    0.02 &    0.02 &    0.05 &     1 &     0 &    0.32 &    0.34 &    0.44 &     9 &    56 \\
+Ascendente & Warm & 200.000                &    0.02 &    0.02 &    0.05 &     1 &     0 &    0.33 &    0.35 &    0.39 &    12 &    57 \\
+Ascendente & Warm & 2.000.000      &    0.02 &    0.02 &    0.03 &     1 &     0 &    0.34 &    0.36 &    1.15 &    15 &    68 \\
+\midrule
+Descendente & Cold/Warm & Todos & \multicolumn{10}{c}{\textit{Não suportado (operação rejeitada por violação de ordenação)}} \\
+Desordenado & Cold/Warm & Todos & \multicolumn{10}{c}{\textit{Não suportado (operação rejeitada por violação de ordenação)}} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{Discussão dos Resultados:}
+Os resultados experimentais sintetizados na Tabela~\ref{tab:bench_isa} comprovam a eficiência do Acesso Sequencial Indexado (ISA) na contenção de operações de E/S, ao mesmo tempo em que delimitam sua dependência estrita das condições da entrada:
+
+Na fase de pré-processamento sob regime \textit{Cold Start}, o custo de construção do arquivo de índice (\texttt{.cache}) apresenta comportamento estritamente linear $O(N)$, efetuando exatamente uma leitura por página ($P = \lceil N / \text{PAGE\_SIZE} \rceil$) e zero comparações de chaves, demandando desde $0{,}35\,\text{ms}$ para $N=20$ até aproximadamente $17{,}9\,\text{s}$ para 2 milhões de registros. No regime \textit{Warm Start}, a detecção do índice persistente pré-existente e a validação de metadados reduzem o pré-processamento a uma única leitura ($R = 1$) e tempos medianos de apenas $0{,}02\,\text{ms}$ para qualquer volume, demonstrando a amortização completa do índice em execuções subsequentes.
+
+Na fase de pesquisa, o método destaca-se pela expressiva parcimônia de I/O, demandando apenas $R \approx \lceil \log_2(N / \text{PAGE\_SIZE}) \rceil + 1$ transferências de disco (somando a busca binária no arquivo de índice à carga da página de dados). Mesmo diante de $N=2.000.000$ (20.000 páginas), foram necessárias somente 15 leituras de disco, mantendo o tempo mediano de consulta abaixo de $0{,}35\,\text{ms}$. Além disso, como o índice esparso armazena apenas a menor chave de cada página e o respectivo índice de bloco, a tabela ocupa cerca de $1\%$ do tamanho do arquivo original, economizando espaço em disco e largura de banda ao evitar a duplicação dos registros volumosos (5.000 bytes por item).
+
+Ressalta-se, contudo, a principal restrição estrutural do algoritmo: seu funcionamento é \textbf{estritamente restrito ao caso em que o arquivo de entrada se encontra ordenado ascendentemente} (Situação 1). A corretude da busca binária fundamenta-se na premissa de monotonicidade das chaves para delimitar os intervalos de cada página ($\text{chave\_pagina}_i \le K < \text{chave\_pagina}_{i+1}$). Em arquivos ordenados descendentemente (Situação 2) ou desordenados (Situação 3), essa propriedade é completamente violada, inviabilizando a delimitação por busca binária e gerando falhas ou falsos negativos imediatos. Por esse motivo, tais cenários são sumariamente rejeitados pela implementação. Sem a garantia de ordenação prévia dos registros de entrada, o método torna-se inoperante, demandando uma etapa prévia e onerosa de ordenação externa sobre o arquivo de dados.
+
+% ------------------------------------------------------------------------------
+% 3.2 Árvore Binária de Pesquisa Externa
+% ------------------------------------------------------------------------------
+\subsection{Árvore Binária de Pesquisa Externa (Binary Tree)}
+\label{subsec:binary_tree}
+
+\subsubsection{Princípio de Funcionamento e Implementação}
+A \textbf{Árvore Binária de Pesquisa Externa} adapta o conceito fundamental de árvores binárias de busca (BST) para o armazenamento permanente em disco. Diferentemente de uma árvore binária em memória RAM em que os apontadores são endereços de memória virtual (\textit{pointers}), nesta implementação os nós residem sequencialmente em um arquivo binário e os apontadores para subárvores esquerda e direita são índices numéricos de nós (offsets baseados em registro).
+
+\paragraph{Arquitetura e Classes:}
+Implementada no \textit{namespace} \texttt{Algorithm::BinaryTree}:
+\begin{itemize}
+    \item \texttt{BTreeFile::Node}: Estrutura de nó compacta contendo a chave inteira (\texttt{int key}), o índice da página correspondente no arquivo de dados (\texttt{uint64\_t pageIndex}) e dois descritores inteiros de posição para os nós filhos (\texttt{uint64\_t left} e \texttt{uint64\_t right});
+    \item \texttt{BTreeFile}: Classe encarregada da criação e da leitura nó a nó via acesso randômico no arquivo binário de índice da árvore;
+    \item \texttt{BTree}: Fachada que conecta o índice da árvore binária ao arquivo de dados original.
+\end{itemize}
+
+\paragraph{Fase de Pré-processamento:}
+No método \texttt{BTreeFile::BuildFile}, o arquivo de dados de entrada é percorrido bloco a bloco. Cada registro é submetido à rotina de inserção na árvore binária:
+\begin{enumerate}
+    \item O primeiro item inserido torna-se o nó raiz (posição 0 do arquivo de árvore);
+    \item Para cada novo item, a inserção percorre o arquivo de nós a partir da raiz, comparando as chaves. Leituras sucessivas de nós em disco são executadas para navegar até um apontador nulo (\texttt{left == 0} ou \texttt{right == 0});
+    \item Ao atingir a folha correspondente, o novo nó é anexado ao final do arquivo de índice e o apontador do nó pai é devidamente atualizado.
+\end{enumerate}
+
+\paragraph{Fase de Pesquisa:}
+Dada a chave procurada $K$:
+\begin{enumerate}
+    \item A busca inicia-se na raiz (\texttt{Search(key)}). O nó raiz é lido do disco;
+    \item Se $\text{nó.key} == K$, a busca no índice encerra com sucesso, recuperando o \texttt{pageIndex};
+    \item Se $K < \text{nó.key}$, a busca avança para o nó apontado por \texttt{nó.left}; caso contrário, para \texttt{nó.right};
+    \item Se um apontador nulo for atingido, a chave não existe;
+    \item Após localizar o nó, a página correspondente no arquivo de dados é carregada para a RAM (\texttt{File::GetPageAt}) e submetida a varredura linear para recuperar o \texttt{Item} integral.
+\end{enumerate}
+
+\paragraph{Sensibilidade à Ordenação e Degeneração:}
+Por se tratar de uma árvore binária sem rebalanceamento automático, o algoritmo exibe extrema sensibilidade à ordem dos dados de entrada:
+\begin{itemize}
+    \item \textbf{Arquivo Ordenado (Ascendente ou Descendente):} A estrutura degenera completamente em uma lista linear encadeada de altura $h = N$. Cada inserção e cada busca passa a demandar $O(N)$ leituras de disco, provocando volumoso tráfego de I/O e degradação severa de desempenho;
+    \item \textbf{Arquivo Desordenado (Aleatório):} A estrutura tende a um comportamento balanceado médio de altura $h \approx O(\log_2 N)$, reduzindo consideravelmente as leituras.
+\end{itemize}
+
+\subsubsection{Resultados Experimentais e Tabela de Benchmark}
+A Tabela~\ref{tab:bench_binary_tree} sintetiza os resultados de benchmark da Árvore Binária Externa abrangendo os três tipos de entrada e regimes \textit{Cold} e \textit{Warm}. Os tempos de execução reportam os percentis p50, p75 e p99 obtidos diretamente a partir das 100 execuções sob as mesmas condições (com a chave garantidamente presente na entrada), além das medianas consolidadas de transferências e comparações (p50).
+
+\begin{table}[H]
+\centering
+\caption{Benchmark experimental -- Árvore Binária de Pesquisa Externa.}
+\label{tab:bench_binary_tree}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llr rrr rr rrr rr}
+\toprule
+& & & \multicolumn{5}{c}{\textbf{Pré-processamento}} & \multicolumn{5}{c}{\textbf{Pesquisa}} \\
+\cmidrule(lr){4-8} \cmidrule(lr){9-13}
+& & & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} \\
+\cmidrule(lr){4-6} \cmidrule(lr){9-11}
+\textbf{Situação} & \textbf{Regime} & \textbf{Qtd ($N$)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} \\
+\midrule
+Ascendente  & Cold & 20                                        &    0.50 &    0.51 &    0.56 &   103 &   201 &    0.03 &    0.04 &    0.06 &     7 &    21 \\
+Ascendente  & Cold & 2.000                         & 1383.97 & 1388.12 & 1400.48 & 1.000.022 & 2.000.001 &    0.84 &    1.20 &    1.57 &   486 & 1.033 \\
+Ascendente  & Cold & 20.000    &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 20000)
+Ascendente  & Cold & 200.000   &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 200000)
+Ascendente  & Cold & 2.000.000 &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 2000000)
+\midrule
+Ascendente  & Warm & 20                                        &    0.02 &    0.02 &    0.02 &     1 &     0 &    0.22 &    0.23 &    0.27 &     7 &    22 \\
+Ascendente  & Warm & 2.000                         &    0.02 &    0.02 &    0.04 &     1 &     0 &    0.93 &    1.35 &    1.77 &   444 &   926 \\
+Ascendente  & Warm & 20.000    &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 20000)
+Ascendente  & Warm & 200.000   &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 200000)
+Ascendente  & Warm & 2.000.000 &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 2000000)
+\midrule
+Descendente & Cold & 20                                        &    0.49 &    0.50 &    0.57 &   103 &   201 &    0.03 &    0.03 &    0.05 &     7 &    21 \\
+Descendente & Cold & 2.000                         & 1390.51 & 1393.18 & 1415.33 & 1.000.022 & 2.000.001 &    0.87 &    1.28 &    1.53 &   529 & 1.088 \\
+Descendente & Cold & 20.000    &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 20000)
+Descendente & Cold & 200.000   &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 200000)
+Descendente & Cold & 2.000.000 &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 2000000)
+\midrule
+Descendente & Warm & 20                                        &    0.02 &    0.02 &    0.02 &     1 &     0 &    0.22 &    0.23 &    0.28 &     7 &    24 \\
+Descendente & Warm & 2.000                         &    0.02 &    0.02 &    0.03 &     1 &     0 &    1.05 &    1.41 &    1.76 &   530 & 1.086 \\
+Descendente & Warm & 20.000    &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 20000)
+Descendente & Warm & 200.000   &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 200000)
+Descendente & Warm & 2.000.000 &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 2000000)
+\midrule
+Desordenado & Cold & 20                                        &    0.44 &    0.44 &    0.51 &    67 &   129 &    0.03 &    0.03 &    0.03 &     6 &    20 \\
+Desordenado & Cold & 2.000                         &  142.27 &  151.80 &  153.84 & 104.687 & 209.331 &    0.08 &    0.15 &    0.49 &    18 &   101 \\
+Desordenado & Cold & 20.000                    & 1257.67 & 1260.67 & 1271.47 & 836.366 & 1.672.329 &    0.09 &    0.13 &    0.39 &    24 &   117 \\
+Desordenado & Cold & 200.000               & 9295.27 & 9312.37 & 9379.65 & 5.857.329 & 11.710.655 &    0.09 &    0.10 &    0.23 &    25 &   104 \\
+Desordenado & Cold & 2.000.000 &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 2000000)
+\midrule
+Desordenado & Warm & 20                                        &    0.02 &    0.02 &    0.04 &     1 &     0 &    0.22 &    0.23 &    0.29 &     5 &    18 \\
+Desordenado & Warm & 2.000                         &    0.02 &    0.02 &    0.04 &     1 &     0 &    0.29 &    0.36 &    0.76 &    26 &   118 \\
+Desordenado & Warm & 20.000                    &    0.02 &    0.02 &    0.03 &     1 &     0 &    0.29 &    0.32 &    0.57 &    26 &   113 \\
+Desordenado & Warm & 200.000               &    0.02 &    0.02 &    0.04 &     1 &     0 &    0.29 &    0.30 &    0.38 &    26 &   106 \\
+Desordenado & Warm & 2.000.000 &  - & - & - & - & - & - & - & - & - & - \\ % (Timeout 2000000)
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{Discussão dos Resultados:}
+Os resultados apresentados na Tabela~\ref{tab:bench_binary_tree} evidenciam o impacto direto da ausência de um sistema de balanceamento na Árvore Binária de Pesquisa Externa. Nas Situações~1 (Ascendente) e~2 (Descendente), a inserção sequencial das chaves direciona todos os nós para um único ramo, degenerando a estrutura em uma lista encadeada linear de altura $h = O(N)$. Com isso, a inserção de cada novo elemento exige percorrer e ler sequencialmente todos os nós anteriores no arquivo (\texttt{.binarytree}), elevando o custo de construção no regime \textit{Cold Start} à complexidade quadrática $O(N^2)$ em tempo, comparações e leituras de disco. Esse comportamento é comprovado experimentalmente para $N = 2.000$, onde foram necessárias $1.000.022$ leituras e $2.000.001$ comparações (tempo mediano de $\approx 1{,}39\,\text{s}$). Essa explosão de operações de I/O inviabiliza as entradas maiores ($N \in \{20.000, \, 200.000, \, 2.000.000\}$), fazendo com que a execução ultrapasse o tempo limite e sofra invariavelmente de \textit{timeout}. Na fase de pesquisa, a degeneração também impõe um custo linear $O(N)$, demandando cerca de 500 leituras de disco para localizar uma chave em $N = 2.000$.
+
+Em contrapartida, na Situação~3 (Desordenado), a distribuição aleatória das chaves preserva uma altura média proporcional a $O(\log_2 N)$, viabilizando a construção até $N = 200.000$ e mantendo a pesquisa eficiente, com apenas 18 a 25 leituras de disco e latência inferior a $0{,}10\,\text{ms}$ a frio. No entanto, para $N = 2.000.000$, a sobrecarga de I/O em acessos aleatórios disco a disco também culmina em \textit{timeout}. Por fim, no regime \textit{Warm Start}, a reutilização do índice persistente pré-existente reduz o pré-processamento a uma única leitura de validação de metadados ($R = 1$) e apenas $0{,}02\,\text{ms}$, demonstrando a plena amortização do custo de construção nos cenários em que o arquivo foi previamente gerado.
+
+% ------------------------------------------------------------------------------
+% 3.3 Árvore B
+% ------------------------------------------------------------------------------
+\subsection{Árvore B (B-Tree)}
+\label{subsec:btree}
+
+\subsubsection{Princípio de Funcionamento e Implementação}
+A \textbf{Árvore B} é uma estrutura de pesquisa balanceada multi-vias concebida especificamente para operar com eficiência sobre dispositivos de memória secundária. No âmbito deste projeto, a Árvore B foi \textbf{efetivamente implementada em memória secundária} através da classe \texttt{BTreeFile}, persistindo todos os seus nós e metadados diretamente em um arquivo binário em disco (com extensão \texttt{.btree}).
+
+Em uma Árvore B de ordem $M$ (onde adotou-se o parâmetro alinhado a $\text{PAGE\_SIZE} = 100$), cada nó alocado em disco armazena múltiplos pares de chave/dado e múltiplos apontadores para nós filhos, propiciando um fator de ramificação (\textit{fan-out}) expressivamente elevado que mantém a altura da árvore tipicamente restrita a $\le 3$ níveis mesmo diante de milhões de registros.
+
+\paragraph{Arquitetura e Implementação em Memória Secundária:}
+A estrutura e a persistência em disco foram modeladas no \textit{namespace} \texttt{Algorithm::BTree}:
+\begin{itemize}
+    \item \texttt{IBTreeData::Entry}: Entrada individual contendo a chave inteira (\texttt{int key}) e a referência ordinal da página no arquivo de dados (\texttt{uint64\_t pageIndex});
+    \item \texttt{IBTreeData::Node}: Bloco de nó serializável de tamanho fixo em disco contendo até $\text{PAGE\_SIZE}$ entradas ordenadas internamente por chave e até $\text{PAGE\_SIZE} + 1$ apontadores (\texttt{int64\_t nodePos}) para os nós filhos, além dos controles de ocupação (\texttt{size}) e identificação de folha (\texttt{isLeaf()}). Os apontadores de filhos não são endereços de memória virtual, mas sim posições ordinais de nós gravados no arquivo de índice;
+    \item \texttt{BTreeFile}: Implementação da Árvore B em \textbf{memória secundária}. Gerencia o fluxo binário (\texttt{std::fstream}), organiza o cabeçalho de metadados (\texttt{Metadata}: data de modificação da entrada, total de itens e offset do nó raiz \texttt{rootIndex}) e executa o endereçamento posicional dos nós via cálculo direto de deslocamento em bytes:
+    \begin{equation}
+        \text{Offset}(\text{nodeIndex}) = \text{sizeof}(\text{Metadata}) + \text{nodeIndex} \times \text{sizeof}(\text{Node})
+    \end{equation}
+    \item \texttt{BTree}: Fachada de alto nível que orquestra as chamadas ao índice persistido em memória secundária e coordena a subsequente leitura do registro na página correspondente do arquivo de dados.
+\end{itemize}
+
+\paragraph{Fase de Pré-processamento e Persistência em Disco:}
+A construção do índice na Árvore B em memória secundária reflete o custo real de I/O em disco:
+\begin{enumerate}
+    \item No regime \textbf{Cold Start}, o arquivo binário \texttt{.btree} é criado em disco. O arquivo de entrada é percorrido página a página, e cada registro é submetido à rotina de inserção persistente;
+    \item A inserção desce recursivamente pelo arquivo de índice lendo os nós em disco (\texttt{ReadNode}). Ao atingir a folha, insere a entrada ordenadamente;
+    \item Em caso de transbordamento (ultrapassando $\text{PAGE\_SIZE}$ entradas), realiza-se a divisão do nó (\textit{split}), alocando um novo nó irmão no final do arquivo (\texttt{AppendNode}), promovendo a chave mediana e regravando os blocos alterados diretamente em disco (\texttt{WriteNode});
+    \item Se a raiz transbordar, uma nova raiz é anexada ao arquivo de índice e o cabeçalho de metadados é atualizado com o novo \texttt{rootIndex};
+    \item No regime \textbf{Warm Start}, o arquivo \texttt{.btree} pré-existente no disco tem seus metadados validados contra o arquivo de dados original (\texttt{ValidateFile}), permitindo reaproveitamento instantâneo sem necessidade de reconstrução.
+\end{enumerate}
+
+\paragraph{Fase de Pesquisa em Memória Secundária:}
+A consulta por uma chave $K$ em memória secundária opera nó a nó sob demanda:
+\begin{enumerate}
+    \item A leitura inicia no nó raiz recuperado do arquivo \texttt{.btree} em disco via \texttt{ReadNode(file, rootIndex, node)};
+    \item Realiza-se a busca pela chave dentro do nó carregado em RAM;
+    \item Se uma entrada possuir chave idêntica a $K$, a busca no índice encerra com sucesso, recuperando o \texttt{pageIndex};
+    \item Se a chave $K$ estiver delimitada por entradas adjacentes, a busca descende para o nó filho correspondente em $\text{nodePos}$, emitindo uma nova leitura de disco (\texttt{ReadNode}) para transferir o nó filho do arquivo para a RAM;
+    \item O processo itera até localizar a chave ou alcançar uma folha sem sucesso;
+    \item Ao término da busca no índice com sucesso, a página de dados apontada por \texttt{pageIndex} é lida da memória secundária via \texttt{File::GetPageAt(pageIndex)}, totalizando $h + 1$ transferências de disco (onde $h$ é o número de nós lidos no arquivo de índice).
+\end{enumerate}
+
+\subsubsection{Resultados Experimentais e Tabela de Benchmark}
+A Tabela~\ref{tab:bench_btree} reporta os dados cronométricos e de I/O coletados nos testes com a Árvore B nos regimes \textit{Cold} e \textit{Warm}. Os tempos de execução reportam os percentis p50, p75 e p99 obtidos diretamente a partir das 100 execuções sob as mesmas condições (com a chave garantidamente presente na entrada), além das medianas consolidadas de transferências e comparações (p50).
+
+\begin{table}[H]
+\centering
+\caption{Benchmark experimental -- Árvore B.}
+\label{tab:bench_btree}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llr rrr rr rrr rr}
+\toprule
+& & & \multicolumn{5}{c}{\textbf{Pré-processamento}} & \multicolumn{5}{c}{\textbf{Pesquisa}} \\
+\cmidrule(lr){4-8} \cmidrule(lr){9-13}
+& & & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} \\
+\cmidrule(lr){4-6} \cmidrule(lr){9-11}
+\textbf{Situação} & \textbf{Regime} & \textbf{Qtd ($N$)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} \\
+\midrule
+Ascendente  & Cold & 20                        &    0.22 &    0.25 &    0.34 &    20 &    73 &    0.03 &    0.03 &    0.05 &     2 &    23 \\
+Ascendente  & Cold & 2.000               &    4.46 &    4.51 &    6.13 & 3.918 & 20.266 &    0.04 &    0.05 &    0.08 &     3 &    84 \\
+Ascendente  & Cold & 20.000            &   55.34 &   57.40 &   61.97 & 54.897 & 269.193 &    0.07 &    0.07 &    0.09 &     4 &   100 \\
+Ascendente  & Cold & 200.000         &  557.74 &  582.13 &  666.14 & 596.697 & 3.369.047 &    0.08 &    0.09 &    0.10 &     4 &    96 \\
+Ascendente  & Cold & 2.000.000   & 21117.75 & 21145.60 & 32391.72 & 7.749.396 & 40.380.512 &    0.09 &    0.91 &    1.58 &     5 &   104 \\
+\midrule
+Ascendente  & Warm & 20                        &    0.01 &    0.01 &    0.03 &     1 &     0 &    0.14 &    0.16 &    0.22 &     2 &    27 \\
+Ascendente  & Warm & 2.000               &    0.01 &    0.01 &    0.02 &     1 &     0 &    0.18 &    0.19 &    0.24 &     3 &    81 \\
+Ascendente  & Warm & 20.000            &    0.01 &    0.01 &    0.02 &     1 &     0 &    0.19 &    0.20 &    0.24 &     4 &    92 \\
+Ascendente  & Warm & 200.000         &    0.01 &    0.02 &    0.03 &     1 &     0 &    0.19 &    0.21 &    0.26 &     4 &    94 \\
+Ascendente  & Warm & 2.000.000   &    0.01 &    0.02 &    0.03 &     1 &     0 &    0.21 &    0.99 &    2.18 &     5 &   102 \\
+\midrule
+Descendente & Cold & 20                        &    0.20 &    0.22 &    0.27 &    20 &   278 &    0.02 &    0.02 &    0.03 &     2 &    27 \\
+Descendente & Cold & 2.000               &    4.15 &    4.27 &    4.94 & 3.918 & 173.672 &    0.04 &    0.04 &    0.07 &     3 &    87 \\
+Descendente & Cold & 20.000            &   54.65 &   54.96 &   65.22 & 54.897 & 1.875.804 &    0.07 &    0.08 &    0.10 &     4 &    97 \\
+Descendente & Cold & 200.000         &  584.57 &  625.05 &  679.13 & 596.697 & 19.622.061 &    0.09 &    0.09 &    0.11 &     4 &   102 \\
+Descendente & Cold & 2.000.000   & 34894.60 & 34989.62 & 35046.16 & 7.749.396 & 206.263.953 &    0.09 &    0.68 &    1.84 &     5 &   106 \\
+\midrule
+Descendente & Warm & 20                        &    0.01 &    0.02 &    0.03 &     1 &     0 &    0.14 &    0.16 &    0.21 &     2 &    26 \\
+Descendente & Warm & 2.000               &    0.01 &    0.01 &    0.02 &     1 &     0 &    0.18 &    0.19 &    0.25 &     3 &    90 \\
+Descendente & Warm & 20.000            &    0.02 &    0.02 &    0.03 &     1 &     0 &    0.21 &    0.22 &    0.33 &     4 &   104 \\
+Descendente & Warm & 200.000         &    0.02 &    0.02 &    0.03 &     1 &     0 &    0.22 &    0.23 &    0.32 &     4 &    96 \\
+Descendente & Warm & 2.000.000   &    0.01 &    0.02 &    0.02 &     1 &     0 &    0.20 &    0.87 &    1.19 &     5 &    96 \\
+\midrule
+Desordenado & Cold & 20                        &    0.20 &    0.21 &    0.30 &    20 &   170 &    0.02 &    0.02 &    0.05 &     2 &    24 \\
+Desordenado & Cold & 2.000               &    4.36 &    4.37 &    5.07 & 3.918 & 80.521 &    0.05 &    0.05 &    0.07 &     3 &    99 \\
+Desordenado & Cold & 20.000            &   57.69 &   59.86 &   70.69 & 53.883 & 898.490 &    0.07 &    0.08 &    0.11 &     4 &   100 \\
+Desordenado & Cold & 200.000         &  662.09 &  678.19 &  742.92 & 595.683 & 10.431.817 &    0.09 &    0.09 &    0.11 &     4 &    95 \\
+Desordenado & Cold & 2.000.000   & 8644.26 & 8856.06 & 9512.31 & 7.599.702 & 115.703.572 &    0.09 &    0.10 &    0.11 &     5 &   109 \\
+\midrule
+Desordenado & Warm & 20                        &    0.01 &    0.02 &    0.02 &     1 &     0 &    0.15 &    0.16 &    0.20 &     2 &    26 \\
+Desordenado & Warm & 2.000               &    0.01 &    0.01 &    0.02 &     1 &     0 &    0.19 &    0.20 &    0.25 &     3 &   102 \\
+Desordenado & Warm & 20.000            &    0.01 &    0.02 &    0.02 &     1 &     0 &    0.20 &    0.21 &    0.29 &     4 &    99 \\
+Desordenado & Warm & 200.000         &    0.01 &    0.02 &    0.03 &     1 &     0 &    0.20 &    0.21 &    0.29 &     4 &   110 \\
+Desordenado & Warm & 2.000.000   &    0.02 &    0.02 &    0.02 &     1 &     0 &    0.20 &    0.21 &    0.29 &     5 &   114 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{Discussão dos Resultados:}
+Os resultados experimentais sintetizados na Tabela~\ref{tab:bench_btree} comprovam a alta eficiência, previsibilidade e robustez estrutural da Árvore B operando como índice balanceado em memória secundária:
+
+Na fase de pré-processamento sob regime \textit{Cold Start}, a construção do arquivo binário persistente (\texttt{.btree}) reflete com precisão as operações reais de E/S demandadas para serializar os nós em disco. À medida que os registros de entrada são inseridos, o algoritmo gerencia os transbordamentos de capacidade ($\text{PAGE\_SIZE} = 100$) por meio de particionamentos de nós (\textit{splits}) e promoções de chaves, efetuando leituras de nós intermediários e anexando novos blocos ao final do arquivo. O número de leituras de disco no pré-processamento exibe comportamento estritamente previsível, partindo de 20 leituras para $N = 20$, atingindo $3.918$ para $N = 2.000$, cerca de $596.000$ para $N = 200.000$ e aproximadamente $7{,}6$ a $7{,}7$ milhões para $N = 2.000.000$. O tempo mediano de construção a frio escala de forma contida, demandando cerca de $0{,}2\,\text{ms}$ para $N=20$, $550\,\text{ms}$ a $660\,\text{ms}$ para $N=200.000$, e atingindo entre $8{,}6\,\text{s}$ (desordenado) e $34{,}9\,\text{s}$ (descendente) no volume máximo testado. Por sua vez, no regime \textit{Warm Start}, a detecção do índice binário pré-existente e a validação do cabeçalho de metadados reduzem o pré-processamento a uma única leitura de validação ($R = 1$) e a um tempo praticamente nulo ($p50 \le 0{,}02\,\text{ms}$) em todas as configurações, demonstrando a plena amortização do custo de criação do índice em disco.
+
+Na fase de pesquisa, a Árvore B destaca-se por sua notável parcimônia de I/O em disco. Em razão do elevado fator de ramificação ($M = 100$), a profundidade da árvore cresce de forma logarítmica extremamente suave: foram necessárias medianamente apenas 2 leituras de disco para $N = 20$, 3 leituras para $N = 2.000$, 4 leituras para $N = 20.000$ e $N = 200.000$, e apenas 5 leituras de disco diante do volume expressivo de $N = 2.000.000$. Como a Árvore B foi implementada em memória secundária, cada leitura no índice corresponde à transferência física de um bloco de nó serializado do arquivo \texttt{.btree} para a memória primária, culminando com a leitura da página de dados correspondente no arquivo principal. O número de comparações de chaves em RAM manteve-se rigorosamente delimitado (entre 23 e 114 comparações no pior caso avaliado), permitindo que o tempo mediano de consulta permanecesse abaixo de $0{,}10\,\text{ms}$ em regime \textit{Cold} e em torno de $0{,}20\,\text{ms}$ em regime \textit{Warm}.
+
+Destaca-se, por fim, a completa imunidade da Árvore B a variações na ordenação inicial dos registros de entrada. O algoritmo manteve métricas operacionais e profundidade rigorosamente uniformes nas três situações avaliadas (Ascendente, Descendente e Desordenado). As regras intrínsecas de particionamento e propagação de chaves garantem o balanceamento em altura em todos os cenários, impedindo qualquer forma de degeneração interna e assegurando que a complexidade de pesquisa permaneça estritamente $O(\log_M N)$ independentemente da distribuição das chaves de entrada.
+
+% ------------------------------------------------------------------------------
+% 3.4 Árvore B*
+% ------------------------------------------------------------------------------
+\subsection{Árvore B* (B*-Tree)}
+\label{subsec:bstar_tree}
+
+\subsubsection{Princípio de Funcionamento e Implementação}
+A \textbf{Árvore B*} é uma evolução sofisticada da Árvore B que introduz duas premissas estruturais cruciais:
+\begin{enumerate}
+    \item \textbf{Segregação entre Nós Internos e Nós Folhas:} Nós internos armazenam unicamente chaves delimitadoras de roteamento e apontadores para nós inferiores, não guardando dados de apontamento para páginas do arquivo de dados. Os dados reais de mapeamento (\texttt{key} e \texttt{pageIndex}) residem exclusivamente nos nós folhas (\textit{Data Nodes});
+    \item \textbf{Encadeamento Sequencial de Folhas:} As folhas contêm apontadores diretos para suas folhas irmãs subsequentes (\texttt{nextData}), permitindo varreduras sequenciais e consultas por intervalo (\textit{range queries}) de altíssimo desempenho sem a necessidade de reescalar a árvore;
+    \item \textbf{Maior Taxa de Ocupação:} Mecanismos de redistribuição de chaves entre nós irmãos antes do particionamento garantem uma taxa média de ocupação superior ($\approx 66\%$ a $75\%$, contra os $\approx 50\%$ mínimos da Árvore B convencional), diminuindo ainda mais o número total de nós alocados.
+\end{enumerate}
+
+No escopo deste projeto, a Árvore B* foi \textbf{especificada e implementada em memória principal} através da classe \texttt{BStarTreeMemory}. Diferentemente da Árvore B (que persiste seus nós em arquivo binário em disco), a Árvore B* mantém todos os seus nós de índice e dados alocados diretamente na memória primária (RAM), atuando como uma estrutura de indexação acelerada em memória para referenciar os blocos de dados persistidos no arquivo binário secundário.
+
+\paragraph{Arquitetura e Implementação em Memória Principal:}
+Implementada no \textit{namespace} \texttt{Algorithm::BStarTree}:
+\begin{itemize}
+    \item \texttt{IBStarTreeData::Node}: Estrutura híbrida baseada em união e discriminador de tipo (\texttt{Node::Type::Index} vs. \texttt{Node::Type::Data}):
+    \begin{itemize}
+        \item O subtipo \texttt{Index} contém um vetor de chaves divisórias (\texttt{std::array<int, PAGE\_SIZE> indexes}) e apontadores de subárvores (\texttt{nodePos});
+        \item O subtipo \texttt{Data} contém as entradas de apontamento (\texttt{std::array<}\allowbreak\texttt{Entry, PAGE\_SIZE> entries}) e o apontador sequencial para o próximo bloco de dados (\texttt{nextData});
+    \end{itemize}
+    \item \texttt{BStarTreeMemory}: Implementação da Árvore B* em \textbf{memória principal}. Gerencia os nós em memória através de um vetor dinâmico contíguo na RAM (arranjo \texttt{nodes\_} de estruturas \texttt{Node}). Os apontadores de subárvores (\texttt{nodePos}) e o encadeamento sequencial entre folhas (\texttt{nextData}) são índices ordinais diretos dentro desse vetor na memória RAM, eliminando qualquer necessidade de I/O em disco para travessia entre nós;
+    \item \texttt{BStarTree}: Fachada de orquestração que realiza a pesquisa pela chave na Árvore B* residente em RAM e, uma vez localizado o \texttt{pageIndex}, executa a única leitura necessária em memória secundária para recuperar o bloco no arquivo de dados.
+\end{itemize}
+
+\paragraph{Fase de Pré-processamento em Memória Principal:}
+Durante o pré-processamento da Árvore B*:
+\begin{enumerate}
+    \item O arquivo de dados original (em memória secundária) é percorrido sequencialmente em blocos de $\text{PAGE\_SIZE}$ registros ($N / \text{PAGE\_SIZE}$ leituras de disco);
+    \item À medida que cada página é carregada em memória primária, seus registros são inseridos na árvore B* residente em RAM via \texttt{InsertItem};
+    \item Todas as rotinas de divisão de nós folhas (\texttt{SplitDataNode}) e de nós internos (\texttt{SplitIndexNode}), bem como a eventual criação de uma nova raiz em memória primária, são realizadas com velocidade de CPU na RAM, sem emitir operações de escrita (\textit{write I/O}) em disco;
+    \item Por não gerar arquivo de cache persistente em disco, a fase a frio foca na leitura da entrada e montagem na memória volátil, enquanto no regime Warm o índice já se encontra instanciado na memória principal.
+\end{enumerate}
+
+\paragraph{Fase de Pesquisa em Memória Principal:}
+Ao consultar uma chave $K$:
+\begin{enumerate}
+    \item A navegação inicia-se na raiz em memória RAM e transita rapidamente pelos nós internos (\texttt{Type::Index}) no vetor \texttt{nodes\_}, comparando $K$ com os divisores do nó para selecionar a subárvore filha sem nenhuma leitura de disco;
+    \item A busca descende na memória primária até alcançar obrigatoriamente um nó folha (\texttt{Type::Data});
+    \item No nó folha residente em RAM, localiza-se a entrada associada à chave procurada;
+    \item Se a chave for encontrada, o \texttt{pageIndex} correspondente é resgatado e o algoritmo emite \textbf{exatamente uma única leitura de disco} na memória secundária via \texttt{File::GetPageAt(pageIndex)}, trazendo a página de dados com 100 itens para a RAM e recuperando o \texttt{Item} integral;
+    \item Se a chave não existir na folha, a pesquisa encerra imediatamente com \textbf{zero leituras de disco};
+    \item Essa estratégia garante que o custo de I/O da pesquisa com sucesso seja fixo em $R = 1$ leitura de bloco, independentemente do volume $N$.
+\end{enumerate}
+
+\subsubsection{Resultados Experimentais e Tabela de Benchmark}
+A Tabela~\ref{tab:bench_bstartree} expõe os resultados empíricos coletados para a Árvore B\* sob o regime \textit{Cold}. Cabe pontuar expressamente que, por ter sido implementada exclusivamente em memória principal (RAM), o regime de execução \textit{Warm} não se aplica à Árvore B* (pois a hierarquia de nós é reconstruída dinamicamente na memória volátil a cada execução, sem persistência de arquivo de índice em disco para reuso), motivo pelo qual o regime \textit{Warm} foi suprimido da tabela. Os tempos de execução reportam os percentis p50, p75 e p99 obtidos diretamente a partir das 100 execuções sob as mesmas condições (com a chave garantidamente presente na entrada), além das medianas consolidadas de transferências e comparações (p50).
+
+\begin{table}[H]
+\centering
+\caption{Benchmark experimental -- Árvore B*.}
+\label{tab:bench_bstartree}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llr rrr rr rrr rr}
+\toprule
+& & & \multicolumn{5}{c}{\textbf{Pré-processamento}} & \multicolumn{5}{c}{\textbf{Pesquisa}} \\
+\cmidrule(lr){4-8} \cmidrule(lr){9-13}
+& & & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} & \multicolumn{3}{c}{\textbf{Tempo (ms)}} & \textbf{Leituras} & \textbf{Comparações} \\
+\cmidrule(lr){4-6} \cmidrule(lr){9-11}
+\textbf{Situação} & \textbf{Regime} & \textbf{Qtd ($N$)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} & \textbf{p50} & \textbf{p75} & \textbf{p99} & \textbf{(p50)} & \textbf{(p50)} \\
+\midrule
+Ascendente  & Cold & 20                &    0.18 &    0.20 &    0.31 &     1 &   108 &    0.03 &    0.03 &    0.05 &     1 &    18 \\
+Ascendente  & Cold & 2.000          &    1.14 &    1.18 &    1.79 &    20 & 30.446 &    0.05 &    0.05 &    0.08 &     1 &    84 \\
+Ascendente  & Cold & 20.000        &   14.82 &   15.28 &   19.42 &   200 & 391.851 &    0.08 &    0.08 &    0.10 &     1 &    86 \\
+Ascendente  & Cold & 200.000      &  154.60 &  155.71 &  215.03 & 2.000 & 4.626.082 &    0.09 &    0.09 &    0.10 &     1 &    88 \\
+Ascendente  & Cold & 2.000.000  & 34094.70 & 34103.57 & 35398.01 & 20.000 & 52.971.485 &    0.10 &    1.03 &    1.34 &     1 &    90 \\
+\midrule
+Descendente & Cold & 20                &    0.18 &    0.19 &    0.24 &     1 &   176 &    0.03 &    0.03 &    0.05 &     1 &    21 \\
+Descendente & Cold & 2.000          &    1.15 &    1.18 &    1.64 &    20 & 39.245 &    0.05 &    0.05 &    0.07 &     1 &    83 \\
+Descendente & Cold & 20.000        &   14.39 &   14.79 &   15.70 &   200 & 472.478 &    0.08 &    0.08 &    0.09 &     1 &    84 \\
+Descendente & Cold & 200.000      &  151.66 &  152.41 &  180.47 & 2.000 & 5.489.066 &    0.09 &    0.09 &    0.10 &     1 &    85 \\
+Descendente & Cold & 2.000.000  & 36181.15 & 36191.88 & 36497.05 & 20.000 & 63.074.761 &    0.85 &    0.97 &    7.11 &     1 &    94 \\
+\midrule
+Desordenado & Cold & 20                &    0.19 &    0.20 &    0.29 &     1 &   154 &    0.03 &    0.03 &    0.05 &     1 &    25 \\
+Desordenado & Cold & 2.000          &    1.45 &    1.48 &    2.00 &    20 & 35.923 &    0.06 &    0.06 &    0.08 &     1 &    85 \\
+Desordenado & Cold & 20.000        &   16.80 &   17.03 &   21.80 &   200 & 440.321 &    0.08 &    0.08 &    0.09 &     1 &    92 \\
+Desordenado & Cold & 200.000      &  195.84 &  197.53 &  237.13 & 2.000 & 5.130.646 &    0.09 &    0.09 &    0.11 &     1 &    96 \\
+Desordenado & Cold & 2.000.000  & 2059.14 & 2085.51 & 2349.36 & 20.000 & 57.387.954 &    0.09 &    0.10 &    0.11 &     1 &   108 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{Discussão dos Resultados:}
+Os resultados experimentais consolidados na Tabela~\ref{tab:bench_bstartree} demonstram o perfil operacional da Árvore B* implementada integralmente em memória principal (RAM), evidenciando seu comportamento frente a diferentes volumes e ordenações de registros:
+
+Inicialmente, cumpre reiterar a fundamentação da ausência do regime \textit{Warm Start} na avaliação experimental: pelo fato de a Árvore B* ter sido concebida e implementada exclusivamente em memória primária, a hierarquia de nós não é gravada em arquivos binários em disco. Consequentemente, não há um índice persistente em memória secundária passível de validação e reutilização em execuções independentes subsequentes. Toda execução inicia-se obrigatoriamente a partir do zero (\textit{Cold Start}), alocando e povoando a árvore na RAM a partir da varredura dos dados originais, razão pela qual as medições reportadas restringem-se ao regime \textit{Cold}.
+
+Na fase de pré-processamento, a construção da estrutura em memória reflete estritamente o custo de varredura linear do arquivo de dados, efetuando exatamente $P = \lceil N / \text{PAGE\_SIZE} \rceil$ transferências de disco ($1$ leitura para $N=20$, $20$ para $N=2.000$, $200$ para $N=20.000$, $2.000$ para $N=200.000$ e $20.000$ para $N=2.000.000$). Como as inserções, divisões (\textit{splits}) e reorganizações de nós de índice e dados ocorrem estritamente na memória volátil com velocidade de CPU, não há emissão de operações de escrita em disco. O tempo mediano de pré-processamento evolui de forma linear e altamente eficiente, partindo de apenas $0{,}18\,\text{ms}$ para $N=20$, atingindo cerca de $150\,\text{ms}$ para $N=200.000$ e alcançando $2{,}06\,\text{s}$ no cenário desordenado e $\approx 34$ a $36\,\text{s}$ nos cenários ordenados para 2 milhões de registros, com contagens de comparações proporcionais à profundidade e ao rearranjo dos nós em memória.
+
+Na fase de pesquisa, o método alcança a marca ótima de exatamente \textbf{1 leitura de disco} ($R = 1$) em todos os cenários, ordens e volumes avaliados (desde $N=20$ até $N=2.000.000$). Esse resultado decorre da residência em memória principal: a travessia descendente através dos nós internos (\texttt{Type::Index}) e a identificação do registro no nó folha (\texttt{Type::Data}) realizam-se inteiramente na RAM via tempo de processador; a única transferência de disco executada consiste na leitura da página física de dados no arquivo de entrada onde o registro completo é armazenado. As comparações de chaves mantiveram-se contidas na faixa de 18 a 108 avaliações, assegurando tempos medianos de resposta sub-milissegundos ($p50 \le 0{,}10\,\text{ms}$ na quase totalidade dos ensaios).
+
+Por fim, a Árvore B* comprova excelente estabilidade algorítmica frente às diferentes disposições da entrada (Ascendente, Descendente e Desordenado). A segregação entre nós de roteamento e folhas de dados, combinada aos mecanismos intrínsecos de balanceamento multi-vias e redistribuição da árvore, preserva a invariante estrutural e impede qualquer degeneração da hierarquia de busca. Adicionalmente, o encadeamento sequencial contíguo entre nós folhas provê uma infraestrutura altamente favorável para percursos e consultas por faixa, consolidando a eficácia da indexação em memória primária com acesso pontual mínimo à memória secundária.
+
+% ==============================================================================
+% 4. COMPARAÇÃO ENTRE OS ALGORITMOS
+% ==============================================================================
+\section{Comparação Geral e Discussão dos Algoritmos}
+\label{sec:comparacao}
+
+A análise comparativa consolidada a partir dos testes empíricos permite confrontar objetivamente as quatro abordagens em relação ao pré-processamento, pesquisa, ordenação e alocação de memória.
+
+\subsection{Custo no Pré-processamento}
+A construção do índice evidencia as diferenças estruturais de cada método:
+\begin{itemize}
+    \item \textbf{ISA:} Exige apenas uma varredura sequencial linear ($P = \lceil N / \text{PAGE\_SIZE} \rceil$ leituras) e zero comparações, gerando um índice esparso de $\approx 1\%$ do arquivo original em tempos de $0{,}35\,\text{ms}$ ($N=20$) a $17{,}94\,\text{s}$ ($N=2.000.000$). Sua restrição é exigir dados estritamente ordenados de forma ascendente;
+    \item \textbf{Árvore Binária:} Degenera em lista encadeada nos arquivos ordenados (Ascendente e Descendente), gerando custo quadrático $O(N^2)$. Já para $N = 2.000$, demandou $1.000.022$ leituras e $2.000.001$ comparações ($\approx 1{,}39\,\text{s}$), sofrendo \textit{timeout} para $N \ge 20.000$. No caso desordenado, atingiu $N = 200.000$ ($9{,}30\,\text{s}$), mas sucumbiu por \textit{timeout} em 2 milhões de registros pela sobrecarga de acessos aleatórios de nós em disco;
+    \item \textbf{Árvore B (Memória Secundária):} Mantém complexidade estável $O(N \log_M N)$ em todas as ordens, persistindo seus nós em arquivo binário (\texttt{.btree}). As leituras de disco escalaram de 20 a $\approx 7{,}75$ milhões, completando 2 milhões de itens em tempos contidos ($8{,}64\,\text{s}$ desordenado, $21{,}12\,\text{s}$ ascendente e $34{,}89\,\text{s}$ descendente);
+    \item \textbf{Árvore B* (Memória Principal):} Limita os acessos a disco à leitura das páginas de dados ($P = \lceil N / \text{PAGE\_SIZE} \rceil$, até $20.000$ leituras em 2M) com zero escrita de índice em disco. A montagem em RAM concluiu $N=200.000$ em menos de $200\,\text{ms}$ e 2 milhões de registros em $2{,}06\,\text{s}$ no caso desordenado e $\approx 35\,\text{s}$ nos ordenados.
+\end{itemize}
+
+\subsection{Eficiência na Fase de Pesquisa}
+Os resultados evidenciam a discrepância entre transferências de blocos e comparações em RAM:
+\begin{itemize}
+    \item \textbf{Leituras de Disco:} A Árvore Binária degenerada exigiu $\approx 500$ leituras de blocos para apenas $2.000$ registros. O ISA demandou de 2 a 15 leituras ($R \approx \log_2(N/\text{PAGE\_SIZE}) + 1$). A Árvore B limitou-se a $h \le 4$ níveis, consumindo entre 2 e 5 leituras de disco para até 2 milhões de itens. Por fim, a Árvore B* alcançou a marca ótima de \textbf{exatamente 1 leitura de disco} ($R = 1$) em todos os cenários, pois a navegação ocorre inteiramente em RAM;
+    \item \textbf{Custo de CPU vs. I/O:} As comparações de chaves em RAM (até 114) tiveram impacto desprezível na latência ($p50 \le 0{,}10\,\text{ms}$ em quase todos os testes), confirmando que a contenção de transferências de disco é o fator que dita o desempenho da busca;
+    \item \textbf{Latência de Cauda (p99):} Em $N = 2.000.000$, o percentil p99 revela flutuações de I/O do subsistema de armazenamento, atingindo $1{,}30\,\text{ms}$ no ISA, $1{,}84\,\text{ms}$ na Árvore B e $7{,}11\,\text{ms}$ na Árvore B*, enquanto a mediana ($p50$) permaneceu abaixo de $0{,}10\,\text{ms}$.
+\end{itemize}
+
+\subsection{Sensibilidade ao Ordenamento da Entrada}
+\begin{itemize}
+    \item \textbf{Ascendente:} Caso ideal para o ISA; balanceado para Árvores B e B*; crítico para a Árvore Binária (degeneração e \textit{timeout});
+    \item \textbf{Descendente:} Inoperante para o ISA; degenerado para a Árvore Binária; plenamente suportado e estável para Árvores B e B*;
+    \item \textbf{Desordenado:} Rejeitado pelo ISA sem ordenação prévia; Árvore Binária viável apenas até $N=200.000$; Árvores B e B* mantêm invariantes estruturais e alto rendimento.
+\end{itemize}
+
+\subsection{Paradigmas de Memória (Cold vs. Warm)}
+As estruturas em memória secundária (ISA, Árvore Binária e Árvore B) criam arquivos persistentes em disco no regime \textit{Cold} e atingem amortização quase instantânea no regime \textit{Warm} ($R = 1$, $p50 \le 0{,}02\,\text{ms}$) via validação de cabeçalho. Já a Árvore B*, por residir unicamente na memória principal, não preserva índice em disco; logo, o regime \textit{Warm} não se aplica, exigindo montagem a frio a cada execução, compensada por buscas estritamente de 1 leitura de disco.
+
+\subsection{Síntese Comparativa Geral}
+A Tabela~\ref{tab:sintese_comparativa} consolida os parâmetros teóricos e as métricas empíricas coletadas no benchmark experimental para os quatro algoritmos avaliados.
+
+\begin{table}[H]
+\centering
+\caption{Quadro comparativo consolidado dos algoritmos de pesquisa externa.}
+\label{tab:sintese_comparativa}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Característica / Métrica} & \textbf{ISA} & \textbf{Árvore Binária} & \textbf{Árvore B} & \textbf{Árvore B*} \\
+\midrule
+Residência do Índice              & Memória Secundária & Memória Secundária & Memória Secundária & Memória Principal (RAM) \\
+Complexidade de Busca (Médio)     & $O(\log(N/\text{PAGE\_SIZE}))$ & $O(\log N)$ & $O(\log_M N)$ & $O(\log_M N)$ \\
+Complexidade de Busca (Pior Caso) & $O(\log(N/\text{PAGE\_SIZE}))$ & $O(N)$ (degenerada) & $O(\log_M N)$ & $O(\log_M N)$ \\
+Leituras de Disco ($N=2.000.000$) & 15 leituras        & Inviável (\textit{timeout}) & 5 leituras & \textbf{1 leitura} \\
+Comparações ($N=2.000.000$, p50)  & 72 comparações     & Inviável (\textit{timeout}) & 104 a 109 comp. & 90 a 108 comp. \\
+Tempo de Busca ($N=2.000.000$, p50)& $0{,}09\,\text{ms}$ (Cold) / $0{,}34\,\text{ms}$ (Warm) & Inviável (\textit{timeout}) & $0{,}09\,\text{ms}$ (Cold) / $0{,}21\,\text{ms}$ (Warm) & $0{,}09\,\text{ms}$ (Cold) \\
+Suporte a Dados Desordenados      & Não (rejeitado)    & Sim (com degradação)& Sim (imune) & Sim (imune) \\
+Sensibilidade à Ordem da Entrada  & Extrema (requer asc.) & Extrema (degenera em lista) & Nula (balanceada) & Nula (balanceada) \\
+Suporte ao Regime Warm            & Sim ($R=1$, $0{,}02\,\text{ms}$) & Sim ($R=1$, $0{,}02\,\text{ms}$) & Sim ($R=1$, $0{,}01\,\text{ms}$) & Não se aplica (em RAM) \\
+Espaço Ocupado pelo Índice        & Mínimo ($\approx 1\%$) & Moderado ($O(N)$) & Moderado ($O(N)$) & Zero em disco (reside em RAM) \\
+Maior Volume Concluído ($N$)      & $2.000.000$        & $2.000$ (ord.) / $200.000$ (des.) & $2.000.000$ & $2.000.000$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+% ==============================================================================
+% 5. CONCLUSÃO
+% ==============================================================================
+\section{Conclusão}
+\label{sec:conclusao}
+
+Este trabalho prático avaliou experimentalmente quatro abordagens de pesquisa externa sobre grandes massas de dados em C++23. As medições empíricas fundamentam as seguintes conclusões:
+\begin{enumerate}
+    \item \textbf{Predominância Crítica do Custo de E/S:} O tempo de resposta de consultas em armazenamento persistente é governado pelo número de transferências de blocos entre disco e memória principal. O custo de comparações lógicas em RAM é ordens de magnitude menor, tornando prioritária a minimização de acessos a disco;
+    \item \textbf{Inviabilidade da Árvore Binária em Disco:} A combinação de ramificação binária ($M=2$) com ausência de balanceamento acarreta degeneração patológica em lista encadeada ($O(N^2)$ operações a frio) nos arquivos ordenados e \textit{timeout} em grandes volumes aleatórios;
+    \item \textbf{Eficiência Especializada do ISA:} Para arquivos estáticos e comprovadamente ordenados de forma ascendente, o ISA oferece uma solução altamente compacta (índice de $1\%$), demandando apenas 15 leituras em 2 milhões de registros com amortização imediata a quente, embora seja inoperante em dados descendentemente ordenados ou aleatórios;
+    \item \textbf{Supremacia das Árvores Multi-vias (B e B*):} As árvores multi-vias asseguram imunidade ao ordenamento e profundidade estritamente logarítmica ($h \le 4$). A Árvore B garante persistência física em disco com no máximo 5 leituras em 2 milhões de itens e baixo consumo de RAM, enquanto a Árvore B* atinge a eficiência máxima de busca ($R = 1$) via residência em memória volátil, com o compromisso de reconstrução a frio em cada execução.
+\end{enumerate}
+
+\end{document}
